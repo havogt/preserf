@@ -1,0 +1,32 @@
+[workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
+
+[dependencies]
+fortran-compiler = "*"
+netcdf-fortran = ">=4.6.0"
+python = ">=3.12"
+
+[pypi-dependencies]
+preserf = { path = ".", editable = true }
+
+[feature.dev.dependencies]
+cmake = ">=3.20"
+c-compiler = "*"
+cxx-compiler = "*"
+netcdf4 = ">=1.7.4"
+numpy = ">=1.26"
+
+[feature.dev.pypi-dependencies]
+mypy = ">=1.0"
+pytest = ">=8.0"
+ruff = ">=0.8"
+
+[feature.dev.tasks]
+lint = "ruff check src tests"
+pytest = "pytest"
+typecheck = "mypy src"
+
+[environments]
+default = { features = [], solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
