@@ -12,6 +12,14 @@ embedded in each spec's Problem section.
 
 ## [0.2.0-dev] — post-v0.1.0 main, unreleased
 
+### Fixed
+
+- Preprocessor: a trailing Fortran comment on a `!$SER` directive line (an
+  unquoted `!`, e.g. `!$SER ACCDATA vn=vn  !! note`) is now stripped instead of
+  being parsed as extra arguments, matching `pp_ser`. `VERBATIM` is excepted
+  (its remainder is emitted as literal source), and a `!` inside a quoted
+  string is left intact.
+
 ### Added
 
 - Tracers (Slice C, Phase 1 — `!$SER REGISTERTRACERS` / `!$SER TRACER`):

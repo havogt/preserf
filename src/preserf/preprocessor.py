@@ -137,6 +137,20 @@ def _is_computed(value: str) -> bool:
     return _RE_MERGE.search(value) is not None
 
 
+def _strip_directive_comment(body: str) -> str:
+    """Drop a trailing Fortran comment (the first unquoted ``!``) from a
+    directive body, leaving a ``!`` inside a quoted string intact."""
+    in_single = in_double = False
+    for i, ch in enumerate(body):
+        if ch == "'" and not in_double:
+            in_single = not in_single
+        elif ch == '"' and not in_single:
+            in_double = not in_double
+        elif ch == "!" and not in_single and not in_double:
+            return body[:i].rstrip()
+    return body
+
+
 @dataclass
 class Options:
     """Configuration for a :class:`Preprocessor` run.
@@ -427,6 +441,13 @@ class Preprocessor:
         body = m.group(1)
         if not body:
             return True  # bare ``!$SER`` line: directive for grouping only
+        # A trailing Fortran comment on the directive line is not part of the
+        # directive; strip it as pp_ser does. VERBATIM is excepted because its
+        # remainder is emitted as literal source.
+        if body.split(None, 1)[0].upper() not in _LANGUAGE["verbatim"]:
+            body = _strip_directive_comment(body)
+            if not body:
+                return True
         args = _RE_TOKENS.split(body)[1::2]
         keyword = args[0].upper()
         for name, spellings in _LANGUAGE.items():

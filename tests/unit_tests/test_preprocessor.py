@@ -150,6 +150,32 @@ def test_accdata_acc_if_clause() -> None:
     assert "ACC_PREFIX UPDATE HOST ( u(:) ), IF (lacc)" in out
 
 
+# --- trailing comments -----------------------------------------------------
+
+
+def test_data_strips_trailing_comment() -> None:
+    out = expand("!$SER DATA u=u(:)  ! contains both nnow and nnew\n")
+    assert "fs_write_field(ppser_serializer, ppser_savepoint, 'u', u(:))" in out
+    assert "nnow" not in out
+
+
+def test_accdata_strips_trailing_comment() -> None:
+    out = expand("!$SER ACCDATA vn=vn  !! note\n")
+    assert "fs_write_field(ppser_serializer, ppser_savepoint, 'vn', vn)" in out
+    assert "note" not in out
+
+
+def test_verbatim_keeps_trailing_comment() -> None:
+    # VERBATIM is emitted as literal source, so its comment must survive.
+    assert "x = 1 ! keep" in expand("!$SER VERBATIM x = 1 ! keep\n")
+
+
+def test_directive_comment_strip_respects_quotes() -> None:
+    # A '!' inside a quoted savepoint metainfo value is not a comment.
+    out = expand("!$SER SAVEPOINT sp tag='a!b'\n")
+    assert "fs_add_savepoint_metainfo(ppser_savepoint, 'tag', 'a!b')" in out
+
+
 # --- MODE ------------------------------------------------------------------
 
 
