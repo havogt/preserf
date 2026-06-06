@@ -68,8 +68,8 @@ module utils_preserf
 
    ! Real-field type metadata for pp_ser-emitted `fs_register_field`
    ! calls. These are mutable `save` state (not `parameter`) so the
-   ! `realtype` / `rprecision` keywords on `!$SER INIT` can override
-   ! them via `ppser_initialize`; the `PPSER_DEFAULT_*` parameters
+   ! `realtype` keyword on `!$SER INIT` can override them via
+   ! `ppser_initialize`; the `PPSER_DEFAULT_*` parameters
    ! below are the Serialbox double-precision defaults, used both as
    ! the initial values here and as the reset target on every fresh
    ! `ppser_initialize` (so a prior override does not stick across a
@@ -334,7 +334,7 @@ contains
       ! are unaffected when a keyword is absent.
       logical, intent(in), optional :: singlefile
       integer, intent(in), optional :: mpi_rank
-      integer, intent(in), optional :: rprecision
+      real(real64), intent(in), optional :: rprecision
       real(real64), intent(in), optional :: rperturb
       character(len=*), intent(in), optional :: realtype
       character(len=*), intent(in), optional :: archive
@@ -389,11 +389,15 @@ contains
 
       ! Behaviour-changing keywords: update the module state that
       ! pp_ser-generated REGISTER / DATA calls consume. `rprecision`
-      ! is the real byte length; `realtype` is the type string passed
-      ! to `fs_register_field`; `rperturb` feeds the read-perturb path
-      ! (Slice A-2) via `ppser_zrperturb`.
+      ! is a Serialbox-compatible real tolerance value (e.g. the ICON
+      ! caller passes `10.0**(-PRECISION(1.0))`, ~1e-6); it is accepted
+      ! here for interface compatibility but not currently used — the
+      ! real byte length is determined by `realtype` / the real kind.
+      ! `realtype` is the type string passed to `fs_register_field`;
+      ! `rperturb` feeds the read-perturb path (Slice A-2) via
+      ! `ppser_zrperturb`.
       !
-      ! Reset to the Serialbox defaults FIRST. These three are module
+      ! Reset to the Serialbox defaults FIRST. These two are module
       ! SAVE state, so without a reset an override from a prior init in
       ! the same process would stick across a later init that omits the
       ! keyword — the omitting init must see the documented default, not
@@ -401,7 +405,6 @@ contains
       ppser_reallength = PPSER_DEFAULT_REALLENGTH
       ppser_realtype = PPSER_DEFAULT_REALTYPE
       ppser_zrperturb = PPSER_DEFAULT_RPERTURB
-      if (present(rprecision)) ppser_reallength = rprecision
       if (present(realtype)) then
          ! `realtype` comes from a user-authored `!$SER INIT` directive,
          ! so reject an over-long value loudly rather than silently
@@ -414,6 +417,16 @@ contains
             error stop 1
          end if
          ppser_realtype = realtype
+         ! Derive the byte length from the type name so `ppser_reallength`
+         ! is always consistent with `ppser_realtype`. Serialbox convention:
+         ! 'float'/'single' → 4 bytes; 'double' → 8 bytes; 'real' → 8 bytes
+         ! (the Serialbox default); any other name leaves the default intact.
+         select case (trim(realtype))
+         case ('float', 'single')
+            ppser_reallength = 4
+         case ('double', 'real')
+            ppser_reallength = 8
+         end select
       end if
       if (present(rperturb)) ppser_zrperturb = rperturb
 

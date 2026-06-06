@@ -105,9 +105,10 @@ program test_minimal
          else if (scenario == 'init-keywords') then
             ! Exercise the behaviour-changing keywords widened onto
             ! ppser_initialize in Slice D: realtype / rprecision (real
-            ! field type metadata), rperturb (read-perturb scale), and
-            ! mpi_rank (per-rank store suffix). Metadata-only keywords
-            ! (singlefile / archive / unique_id) are Slice D Phase 3.
+            ! tolerance value, not byte length — see issue #38), rperturb
+            ! (read-perturb scale), and mpi_rank (per-rank store suffix).
+            ! Metadata-only keywords (singlefile / archive / unique_id)
+            ! are Slice D Phase 3.
             block
                use netcdf
                ! Mirrors the (private) TID_FLOAT32 in m_preserf; the
@@ -117,14 +118,18 @@ program test_minimal
                integer(int32) :: type_id_back
                logical :: exist0, exist1, exist_plain
 
-               ! --- realtype / rprecision override ppser_realtype /
-               ! ppser_reallength so a real field registers as float32 ---
+               ! --- realtype overrides ppser_realtype and auto-derives
+               ! ppser_reallength so a real field registers as float32.
+               ! rprecision is accepted as a real tolerance (Serialbox
+               ! compat, e.g. ICON passes 10.0**(-PRECISION(1.0))) but
+               ! does not affect ppser_reallength (see issue #38). ---
                call ppser_initialize(out_dir, 'fkw', 'w', &
-                                     realtype='float', rprecision=4)
+                                     realtype='float', &
+                                     rprecision=1.0e-6_real64)
                if (trim(ppser_realtype) /= 'float') error stop &
                   'init-keywords: realtype did not update ppser_realtype'
                if (ppser_reallength /= 4) error stop &
-                  'init-keywords: rprecision did not update ppser_reallength'
+                  'init-keywords: realtype=float did not derive ppser_reallength=4'
                call fs_register_field(ppser_serializer, 'f32', &
                                       ppser_realtype, ppser_reallength, &
                                       3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -144,14 +149,14 @@ program test_minimal
                call ppser_initialize(out_dir, 'fkw', 'w', rperturb=1.5_real64)
                if (ppser_zrperturb /= 1.5_real64) error stop &
                   'init-keywords: rperturb did not update ppser_zrperturb'
-               ! realtype / rprecision were omitted on this init, so the
-               ! prior init's overrides must NOT stick: they are module
-               ! SAVE state and ppser_initialize resets them to the
-               ! Serialbox defaults on every fresh session.
+               ! realtype was omitted on this init, so the prior init's
+               ! overrides must NOT stick: they are module SAVE state and
+               ! ppser_initialize resets them to the Serialbox defaults on
+               ! every fresh session.
                if (trim(ppser_realtype) /= 'double') error stop &
                   'init-keywords: realtype override stuck across re-init'
                if (ppser_reallength /= 8) error stop &
-                  'init-keywords: rprecision override stuck across re-init'
+                  'init-keywords: ppser_reallength override stuck across re-init'
                call ppser_finalize()
 
                ! rperturb omitted here must likewise fall back to the
@@ -194,7 +199,7 @@ program test_minimal
                call ppser_initialize(out_dir, 'fmeta', 'w', &
                                      singlefile=.true., archive='netcdf', &
                                      unique_id=42, mpi_rank=0, &
-                                     rprecision=8, rperturb=0.0_real64, &
+                                     rprecision=1.0e-6_real64, rperturb=0.0_real64, &
                                      realtype='double')
                call ppser_finalize()
 
