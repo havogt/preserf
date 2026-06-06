@@ -15,11 +15,14 @@ subroutine PRESERF_SUB(s, sp, fieldname, data, perturb)
    character(len=*), intent(in) :: fieldname
    PRESERF_DTYPE, intent(inout) PRESERF_DIMS :: data
    real(real64), intent(in) :: perturb
+   real(real64) :: unused_perturb
    if (serialisation_enabled == 0) return
    call PRESERF_BASE(s, sp, fieldname, data)
    ! `perturb` is accepted to match pp_ser's 5-arg call shape but is
    ! meaningless for non-float types and is intentionally ignored here.
-   ! The associate below is a zero-cost reference that satisfies the
-   ! compiler's unused-dummy-argument check.
-   associate (unused => perturb); end associate
+   ! The unreachable read into a discard local is a zero-cost reference
+   ! that silences the compiler's unused-dummy-argument check (same
+   ! `if (.false.) ...` idiom as `version` in preserf_open_serializer in
+   ! utils_preserf.f90; perturb is intent(in) so it is only read here).
+   if (.false.) unused_perturb = perturb
 end subroutine PRESERF_SUB

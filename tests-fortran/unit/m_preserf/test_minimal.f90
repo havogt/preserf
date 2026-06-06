@@ -532,8 +532,14 @@ program test_minimal
                integer(int64) :: i8sc, i81(2), i82(2, 3), i83(2, 3, 4), i84(2, 3, 4, 5)
                integer(int64) :: i8sc_b, i81_b(2), i82_b(2, 3), i83_b(2, 3, 4), i84_b(2, 3, 4, 5)
                integer :: ii
+               ! Mixed true/false pattern (true on odd linear index) so a
+               ! wrong element ordering or partial read changes at least one
+               ! element and fails the bit-identical round-trip assertion.
                lsc = .true.
-               l1 = .true.; l2 = .true.; l3 = .true.; l4 = .true.
+               l1 = reshape([(mod(ii, 2) == 1, ii=1, size(l1))], shape(l1))
+               l2 = reshape([(mod(ii, 2) == 1, ii=1, size(l2))], shape(l2))
+               l3 = reshape([(mod(ii, 2) == 1, ii=1, size(l3))], shape(l3))
+               l4 = reshape([(mod(ii, 2) == 1, ii=1, size(l4))], shape(l4))
                i4sc = 99_int32
                i41 = reshape([(int(ii, int32), ii=1, size(i41))], shape(i41))
                i42 = reshape([(int(ii, int32), ii=1, size(i42))], shape(i42))
