@@ -14,7 +14,8 @@
 !> directly via netCDF4 (so the kind-specific `nf90_put_att` branches
 !> are protected against on-disk type regressions).
 program test_minimal
-   use, intrinsic :: iso_fortran_env, only: int32, int64, real32, real64
+   use, intrinsic :: iso_fortran_env, only: int32, int64, real32, real64, &
+                                            error_unit
    ! Deliberately import the alias module names rather than the real
    ! ones (utils_preserf, m_preserf). pp_ser-generated source uses
    ! `USE m_serialize` / `USE utils_ppser`, so wiring the integration
@@ -419,7 +420,7 @@ program test_minimal
                character(len=:), allocatable :: nested_dir
                character(len=:), allocatable :: store_path
                real(real64) :: u_w(3)
-               logical :: dir_pre, store_post
+               logical :: store_pre, store_post
                integer :: i
                do i = 1, 3
                   u_w(i) = 700.0_real64 + real(i, real64)
@@ -438,8 +439,8 @@ program test_minimal
                if (dir_exists(nested_dir)) error stop &
                   'init-mkdir: nested output directory unexpectedly present '// &
                   'before init (precondition cleanup failed)'
-               inquire (file=store_path, exist=dir_pre)
-               if (dir_pre) error stop &
+               inquire (file=store_path, exist=store_pre)
+               if (store_pre) error stop &
                   'init-mkdir: store file unexpectedly present before init'
 
                call ppser_initialize(nested_dir, 'fmkdir', 'w')
@@ -1801,8 +1802,14 @@ contains
       end do
       call execute_command_line("rm -rf -- '"//escaped//"'", &
                                 wait=.true., exitstat=exitstat, cmdstat=cmdstat)
-      if (cmdstat /= 0 .or. exitstat /= 0) error stop &
-         'remove_dir_recursive: failed to clear precondition directory'
+      if (cmdstat /= 0 .or. exitstat /= 0) then
+         ! `error stop` only takes a constant message, so emit the offending
+         ! path (which CI needs to diagnose the failure) to stderr first.
+         write (error_unit, '(a)') &
+            'remove_dir_recursive: failed to clear precondition directory: '// &
+            trim(path)
+         error stop 'remove_dir_recursive: failed to clear precondition directory'
+      end if
    end subroutine remove_dir_recursive
 
    !> Return .true. iff `path` is an existing directory. gfortran's
