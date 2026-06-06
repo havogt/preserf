@@ -779,9 +779,10 @@ contains
       ! Single-quote the path so spaces and shell metacharacters are taken
       ! literally; embedded single quotes are escaped via the standard
       ! '\'' close-reopen idiom so a quote in the path cannot break out of
-      ! the quoting.
+      ! the quoting. `--` terminates option parsing so a path beginning with
+      ! `-` is treated as an operand rather than a `mkdir` flag.
       call execute_command_line( &
-         "mkdir -p '"//replace_single_quotes(trim(directory))//"'", &
+         "mkdir -p -- '"//replace_single_quotes(trim(directory))//"'", &
          wait=.true., exitstat=exitstat, cmdstat=cmdstat, cmdmsg=cmdmsg)
 
       if (cmdstat /= 0) then
