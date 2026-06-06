@@ -516,6 +516,187 @@ program test_minimal
                write (*, '(a)') 'preserf-fortran: perturb-roundtrip OK'
                stop
             end block
+         else if (scenario == 'perturb-noop') then
+            ! Issue #39: the 5-arg fs_read_field(s, sp, name, data, perturb)
+            ! must resolve for integer (int32 / int64) and logical fields.
+            ! The perturb argument is accepted but ignored; the field is
+            ! read identically to the 4-arg form. This scenario proves the
+            ! generic interface resolves for all three non-float dtypes at
+            ! ranks 0-4, and that the round-trip values are bit-identical
+            ! regardless of the perturb scale.
+            block
+               logical :: lsc, l1(2), l2(2, 3), l3(2, 3, 4), l4(2, 3, 4, 5)
+               logical :: lsc_b, l1_b(2), l2_b(2, 3), l3_b(2, 3, 4), l4_b(2, 3, 4, 5)
+               integer(int32) :: i4sc, i41(2), i42(2, 3), i43(2, 3, 4), i44(2, 3, 4, 5)
+               integer(int32) :: i4sc_b, i41_b(2), i42_b(2, 3), i43_b(2, 3, 4), i44_b(2, 3, 4, 5)
+               integer(int64) :: i8sc, i81(2), i82(2, 3), i83(2, 3, 4), i84(2, 3, 4, 5)
+               integer(int64) :: i8sc_b, i81_b(2), i82_b(2, 3), i83_b(2, 3, 4), i84_b(2, 3, 4, 5)
+               integer :: ii
+               lsc = .true.
+               l1 = .true.; l2 = .true.; l3 = .true.; l4 = .true.
+               i4sc = 99_int32
+               i41 = reshape([(int(ii, int32), ii=1, size(i41))], shape(i41))
+               i42 = reshape([(int(ii, int32), ii=1, size(i42))], shape(i42))
+               i43 = reshape([(int(ii, int32), ii=1, size(i43))], shape(i43))
+               i44 = reshape([(int(ii, int32), ii=1, size(i44))], shape(i44))
+               i8sc = 9999_int64
+               i81 = reshape([(int(ii, int64), ii=1, size(i81))], shape(i81))
+               i82 = reshape([(int(ii, int64), ii=1, size(i82))], shape(i82))
+               i83 = reshape([(int(ii, int64), ii=1, size(i83))], shape(i83))
+               i84 = reshape([(int(ii, int64), ii=1, size(i84))], shape(i84))
+
+               ! Write a store with one field of each (dtype, rank).
+               call ppser_initialize(out_dir, 'fperturb_noop', 'w')
+               call fs_register_field(ppser_serializer, 'lsc', 'bool', 1, &
+                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'l1', 'bool', 1, &
+                                      2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'l2', 'bool', 1, &
+                                      2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'l3', 'bool', 1, &
+                                      2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'l4', 'bool', 1, &
+                                      2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i4sc', 'int', 4, &
+                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i41', 'int', 4, &
+                                      2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i42', 'int', 4, &
+                                      2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i43', 'int', 4, &
+                                      2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i44', 'int', 4, &
+                                      2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i8sc', 'int64', 8, &
+                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i81', 'int64', 8, &
+                                      2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i82', 'int64', 8, &
+                                      2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i83', 'int64', 8, &
+                                      2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i84', 'int64', 8, &
+                                      2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_create_savepoint('step', ppser_savepoint)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'lsc', lsc)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'l1', l1)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'l2', l2)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'l3', l3)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'l4', l4)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'i4sc', i4sc)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'i41', i41)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'i42', i42)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'i43', i43)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'i44', i44)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'i8sc', i8sc)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'i81', i81)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'i82', i82)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'i83', i83)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'i84', i84)
+               call ppser_finalize()
+
+               ! Re-open read-only and use the 5-arg perturb form for every
+               ! field. The values must be bit-identical to the written ones
+               ! regardless of the (ignored) perturb scale.
+               call ppser_initialize(out_dir, 'fperturb_noop', 'r')
+               call fs_register_field(ppser_serializer, 'lsc', 'bool', 1, &
+                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'l1', 'bool', 1, &
+                                      2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'l2', 'bool', 1, &
+                                      2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'l3', 'bool', 1, &
+                                      2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'l4', 'bool', 1, &
+                                      2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i4sc', 'int', 4, &
+                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i41', 'int', 4, &
+                                      2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i42', 'int', 4, &
+                                      2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i43', 'int', 4, &
+                                      2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i44', 'int', 4, &
+                                      2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i8sc', 'int64', 8, &
+                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i81', 'int64', 8, &
+                                      2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i82', 'int64', 8, &
+                                      2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i83', 'int64', 8, &
+                                      2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_register_field(ppser_serializer, 'i84', 'int64', 8, &
+                                      2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_create_savepoint('step', ppser_savepoint)
+               ! Use a non-zero perturb scale (0.5) to confirm it is truly
+               ! ignored — if applied to an integer bit-pattern it would
+               ! produce garbage, so any non-identity result would be visible.
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'lsc', lsc_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'l1', l1_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'l2', l2_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'l3', l3_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'l4', l4_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i4sc', i4sc_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i41', i41_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i42', i42_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i43', i43_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i44', i44_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i8sc', i8sc_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i81', i81_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i82', i82_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i83', i83_b, 0.5_real64)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i84', i84_b, 0.5_real64)
+               if (lsc_b .neqv. lsc) error stop &
+                  'perturb-noop: 0-D logical mismatch'
+               if (any(l1_b .neqv. l1)) error stop &
+                  'perturb-noop: 1-D logical mismatch'
+               if (any(l2_b .neqv. l2)) error stop &
+                  'perturb-noop: 2-D logical mismatch'
+               if (any(l3_b .neqv. l3)) error stop &
+                  'perturb-noop: 3-D logical mismatch'
+               if (any(l4_b .neqv. l4)) error stop &
+                  'perturb-noop: 4-D logical mismatch'
+               if (i4sc_b /= i4sc) error stop &
+                  'perturb-noop: 0-D int32 mismatch'
+               if (any(i41_b /= i41)) error stop &
+                  'perturb-noop: 1-D int32 mismatch'
+               if (any(i42_b /= i42)) error stop &
+                  'perturb-noop: 2-D int32 mismatch'
+               if (any(i43_b /= i43)) error stop &
+                  'perturb-noop: 3-D int32 mismatch'
+               if (any(i44_b /= i44)) error stop &
+                  'perturb-noop: 4-D int32 mismatch'
+               if (i8sc_b /= i8sc) error stop &
+                  'perturb-noop: 0-D int64 mismatch'
+               if (any(i81_b /= i81)) error stop &
+                  'perturb-noop: 1-D int64 mismatch'
+               if (any(i82_b /= i82)) error stop &
+                  'perturb-noop: 2-D int64 mismatch'
+               if (any(i83_b /= i83)) error stop &
+                  'perturb-noop: 3-D int64 mismatch'
+               if (any(i84_b /= i84)) error stop &
+                  'perturb-noop: 4-D int64 mismatch'
+               call ppser_finalize()
+               write (*, '(a)') 'preserf-fortran: perturb-noop OK'
+               stop
+            end block
          else if (scenario == 'read-ref') then
             ! Slice A-1 Phase 2: with an explicit directory_ref / prefix_ref
             ! the savepoint is resolved against the PRIMARY serializer (as

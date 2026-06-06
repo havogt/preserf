@@ -201,6 +201,20 @@ set_tests_properties(preserf_fortran_perturb_roundtrip PROPERTIES
     TIMEOUT 60
 )
 
+# Issue #39: 5-arg fs_read_field perturb overloads for integer and logical.
+# The perturb argument is accepted but ignored; the field is read identically
+# to the 4-arg form. Covers int32, int64, and logical at ranks 0-4.
+add_test(
+    NAME preserf_fortran_perturb_noop
+    COMMAND $<TARGET_FILE:preserf_fortran_test_minimal>
+            "${CMAKE_CURRENT_BINARY_DIR}/test-output" perturb-noop
+)
+set_tests_properties(preserf_fortran_perturb_noop PROPERTIES
+    FIXTURES_REQUIRED preserf_fortran_output_dir
+    PASS_REGULAR_EXPRESSION "preserf-fortran: perturb-noop OK"
+    TIMEOUT 60
+)
+
 # Positive: explicit reference-store read resolves the savepoint under the
 # reference serializer (Phase 2).
 add_test(

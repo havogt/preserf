@@ -162,6 +162,21 @@ module m_preserf
       module procedure fs_read_field_r8_0d_perturb, &
          fs_read_field_r8_1d_perturb, fs_read_field_r8_2d_perturb, &
          fs_read_field_r8_3d_perturb, fs_read_field_r8_4d_perturb
+      ! Read-perturb (5-arg) no-op overloads: integer and logical dtypes,
+      ! ranks 0-4. Perturbation is ignored for non-float types; these
+      ! overloads exist so that pp_ser / Serialbox callers that emit the
+      ! same 5-arg call shape for every type (e.g. mo_ser_common.f90
+      ! CASE(2) blocks) compile and run correctly for integer/logical
+      ! fields. See issue #39.
+      module procedure fs_read_field_l_0d_perturb, &
+         fs_read_field_l_1d_perturb, fs_read_field_l_2d_perturb, &
+         fs_read_field_l_3d_perturb, fs_read_field_l_4d_perturb
+      module procedure fs_read_field_i4_0d_perturb, &
+         fs_read_field_i4_1d_perturb, fs_read_field_i4_2d_perturb, &
+         fs_read_field_i4_3d_perturb, fs_read_field_i4_4d_perturb
+      module procedure fs_read_field_i8_0d_perturb, &
+         fs_read_field_i8_1d_perturb, fs_read_field_i8_2d_perturb, &
+         fs_read_field_i8_3d_perturb, fs_read_field_i8_4d_perturb
    end interface
    public :: fs_read_field
 
@@ -1948,6 +1963,132 @@ contains
 #define PRESERF_APPLY apply_perturb_r8_4d
 #include "preserf_read_field_perturb.inc"
 #undef PRESERF_APPLY
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#undef PRESERF_DTYPE
+
+   ! ------------------------------------------------------------------------
+   ! DATA — read with perturbation magnitude (CASE(2) form) — no-op overloads
+   !
+   ! Integer (int32 / int64) and logical fields accept the 5-arg call shape
+   ! that pp_ser emits uniformly for every type in its read-perturb CASE(2)
+   ! branch (see issue #39). The perturbation argument is received and
+   ! discarded; the field is simply read via its 4-arg sibling.
+   ! ------------------------------------------------------------------------
+
+   ! logical read-perturb no-op overloads (ranks 0-4).
+#define PRESERF_DTYPE logical
+#define PRESERF_SUB fs_read_field_l_0d_perturb
+#define PRESERF_DIMS
+#define PRESERF_BASE fs_read_field_l_0d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_l_1d_perturb
+#define PRESERF_DIMS , dimension(:)
+#define PRESERF_BASE fs_read_field_l_1d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_l_2d_perturb
+#define PRESERF_DIMS , dimension(:, :)
+#define PRESERF_BASE fs_read_field_l_2d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_l_3d_perturb
+#define PRESERF_DIMS , dimension(:, :, :)
+#define PRESERF_BASE fs_read_field_l_3d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_l_4d_perturb
+#define PRESERF_DIMS , dimension(:, :, :, :)
+#define PRESERF_BASE fs_read_field_l_4d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#undef PRESERF_DTYPE
+
+   ! int32 read-perturb no-op overloads (ranks 0-4).
+#define PRESERF_DTYPE integer(int32)
+#define PRESERF_SUB fs_read_field_i4_0d_perturb
+#define PRESERF_DIMS
+#define PRESERF_BASE fs_read_field_i4_0d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_i4_1d_perturb
+#define PRESERF_DIMS , dimension(:)
+#define PRESERF_BASE fs_read_field_i4_1d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_i4_2d_perturb
+#define PRESERF_DIMS , dimension(:, :)
+#define PRESERF_BASE fs_read_field_i4_2d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_i4_3d_perturb
+#define PRESERF_DIMS , dimension(:, :, :)
+#define PRESERF_BASE fs_read_field_i4_3d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_i4_4d_perturb
+#define PRESERF_DIMS , dimension(:, :, :, :)
+#define PRESERF_BASE fs_read_field_i4_4d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#undef PRESERF_DTYPE
+
+   ! int64 read-perturb no-op overloads (ranks 0-4).
+#define PRESERF_DTYPE integer(int64)
+#define PRESERF_SUB fs_read_field_i8_0d_perturb
+#define PRESERF_DIMS
+#define PRESERF_BASE fs_read_field_i8_0d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_i8_1d_perturb
+#define PRESERF_DIMS , dimension(:)
+#define PRESERF_BASE fs_read_field_i8_1d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_i8_2d_perturb
+#define PRESERF_DIMS , dimension(:, :)
+#define PRESERF_BASE fs_read_field_i8_2d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_i8_3d_perturb
+#define PRESERF_DIMS , dimension(:, :, :)
+#define PRESERF_BASE fs_read_field_i8_3d
+#include "preserf_read_field_perturb_noop.inc"
+#undef PRESERF_BASE
+#undef PRESERF_DIMS
+#undef PRESERF_SUB
+#define PRESERF_SUB fs_read_field_i8_4d_perturb
+#define PRESERF_DIMS , dimension(:, :, :, :)
+#define PRESERF_BASE fs_read_field_i8_4d
+#include "preserf_read_field_perturb_noop.inc"
 #undef PRESERF_BASE
 #undef PRESERF_DIMS
 #undef PRESERF_SUB
