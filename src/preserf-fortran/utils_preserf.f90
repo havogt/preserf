@@ -792,10 +792,13 @@ contains
          error stop 1
       end if
       if (exitstat /= 0) then
-         write (*, '(a,a,a,i0,a,a,a)') &
+         ! Note: the Fortran standard only guarantees `cmdmsg` is defined
+         ! when `cmdstat /= 0`. Here the command ran (`cmdstat == 0`) but
+         ! `mkdir` returned a non-zero exit status, so `cmdmsg` may be
+         ! undefined and must not be read; report only the exit status.
+         write (*, '(a,a,a,i0,a)') &
             'preserf: failed to create output directory ', &
-            trim(directory), ' (mkdir exit status ', exitstat, ': ', &
-            trim(cmdmsg), ')'
+            trim(directory), ' (mkdir exit status ', exitstat, ')'
          error stop 1
       end if
    end subroutine preserf_ensure_directory
