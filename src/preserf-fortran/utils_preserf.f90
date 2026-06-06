@@ -397,11 +397,14 @@ contains
       ! `rperturb` feeds the read-perturb path (Slice A-2) via
       ! `ppser_zrperturb`.
       !
-      ! Reset to the Serialbox defaults FIRST. These two are module
-      ! SAVE state, so without a reset an override from a prior init in
-      ! the same process would stick across a later init that omits the
-      ! keyword — the omitting init must see the documented default, not
-      ! the stale override.
+      ! Reset to the Serialbox defaults FIRST. All three of
+      ! `ppser_reallength`, `ppser_realtype`, and `ppser_zrperturb` are
+      ! module SAVE state, so without a reset an override from a prior
+      ! init in the same process would stick across a later init that
+      ! omits the keyword — the omitting init must see the documented
+      ! default, not the stale override. (`ppser_reallength` is reset
+      ! alongside `ppser_realtype` because it is re-derived from
+      ! `realtype` below, so a stale length must not survive either.)
       ppser_reallength = PPSER_DEFAULT_REALLENGTH
       ppser_realtype = PPSER_DEFAULT_REALTYPE
       ppser_zrperturb = PPSER_DEFAULT_RPERTURB
@@ -421,7 +424,11 @@ contains
          ! is always consistent with `ppser_realtype`. Serialbox convention:
          ! 'float'/'single' → 4 bytes; 'double' → 8 bytes; 'real' → 8 bytes
          ! (the Serialbox default); any other name leaves the default intact.
-         select case (trim(realtype))
+         ! Match case-insensitively (mirroring `type_id_from_datatype`'s
+         ! `to_lower` on the datatype) so e.g. `realtype='FLOAT'` derives a
+         ! length of 4 instead of silently keeping the default 8, which
+         ! would later abort `fs_register_field` on a byte-length mismatch.
+         select case (preserf_to_lower(trim(realtype)))
          case ('float', 'single')
             ppser_reallength = 4
          case ('double', 'real')
@@ -908,5 +915,23 @@ contains
          error stop 1
       end if
    end subroutine preserf_validate_schema_version
+
+   ! ASCII lowercase, mirroring `m_preserf`'s `to_lower`. Duplicated here
+   ! (rather than reused) because `m_preserf` already `use`s this module,
+   ! so depending on it back would be a circular module dependency.
+   pure function preserf_to_lower(s) result(r)
+      character(len=*), intent(in) :: s
+      character(len=len(s)) :: r
+      integer :: i, c
+
+      do i = 1, len(s)
+         c = iachar(s(i:i))
+         if (c >= iachar('A') .and. c <= iachar('Z')) then
+            r(i:i) = achar(c + 32)
+         else
+            r(i:i) = s(i:i)
+         end if
+      end do
+   end function preserf_to_lower
 
 end module utils_preserf

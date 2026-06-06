@@ -145,6 +145,19 @@ program test_minimal
                   'init-keywords: realtype=float did not register float32'
                call ppser_finalize()
 
+               ! --- realtype matching is case-insensitive: an uppercase
+               ! 'FLOAT' must still derive ppser_reallength=4. type_id_from_datatype
+               ! lowercases the datatype, so a case-sensitive length
+               ! derivation here would leave ppser_reallength at the default
+               ! 8 and abort fs_register_field on a byte-length mismatch
+               ! (issue #38, PR #40 review). ---
+               call ppser_initialize(out_dir, 'fkw', 'w', realtype='FLOAT')
+               if (trim(ppser_realtype) /= 'FLOAT') error stop &
+                  'init-keywords: uppercase realtype did not update ppser_realtype'
+               if (ppser_reallength /= 4) error stop &
+                  'init-keywords: realtype=FLOAT did not derive ppser_reallength=4'
+               call ppser_finalize()
+
                ! --- rperturb threads to ppser_zrperturb (Slice A-2) ---
                call ppser_initialize(out_dir, 'fkw', 'w', rperturb=1.5_real64)
                if (ppser_zrperturb /= 1.5_real64) error stop &
