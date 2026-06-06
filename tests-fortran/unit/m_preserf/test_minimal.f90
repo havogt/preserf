@@ -1802,9 +1802,20 @@ contains
       end do
       call execute_command_line("rm -rf -- '"//escaped//"'", &
                                 wait=.true., exitstat=exitstat, cmdstat=cmdstat)
-      if (cmdstat /= 0 .or. exitstat /= 0) then
-         ! `error stop` only takes a constant message, so emit the offending
-         ! path (which CI needs to diagnose the failure) to stderr first.
+      ! Test cmdstat FIRST: per the Fortran standard, exitstat is not
+      ! guaranteed to be defined when cmdstat is non-zero, and `.or.` is not
+      ! guaranteed to short-circuit, so reading exitstat in the same condition
+      ! could read an undefined value. Split the checks (mirroring the
+      ! cmdstat-then-exitstat ordering in preserf_ensure_directory).
+      ! `error stop` only takes a constant message, so emit the offending
+      ! path (which CI needs to diagnose the failure) to stderr first.
+      if (cmdstat /= 0) then
+         write (error_unit, '(a)') &
+            'remove_dir_recursive: failed to clear precondition directory: '// &
+            trim(path)
+         error stop 'remove_dir_recursive: failed to clear precondition directory'
+      end if
+      if (exitstat /= 0) then
          write (error_unit, '(a)') &
             'remove_dir_recursive: failed to clear precondition directory: '// &
             trim(path)

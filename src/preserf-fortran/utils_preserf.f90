@@ -792,9 +792,10 @@ contains
          error stop 1
       end if
       if (exitstat /= 0) then
-         write (*, '(a,a,a,i0,a)') &
+         write (*, '(a,a,a,i0,a,a,a)') &
             'preserf: failed to create output directory ', &
-            trim(directory), ' (mkdir exit status ', exitstat, ')'
+            trim(directory), ' (mkdir exit status ', exitstat, ': ', &
+            trim(cmdmsg), ')'
          error stop 1
       end if
    end subroutine preserf_ensure_directory
