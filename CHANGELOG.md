@@ -186,6 +186,18 @@ embedded in each spec's Problem section.
 
 ### Fixed
 
+- `ppser_initialize` now creates the output `directory` (`mkdir -p`
+  semantics) before `nf90_create` on the write path, restoring drop-in
+  compatibility with Serialbox: its serializer creation made the output
+  directory, so real `!$SER INIT directory='...'` call sites (e.g. ICON)
+  and the runscripts that drive them never `mkdir` it. Previously a fresh
+  run aborted inside `nf90_create` with netCDF's generic "Permission
+  denied" (the real cause being the missing parent directory). The mkdir
+  is portable (`EXECUTE_COMMAND_LINE` with `mkdir -p`), idempotent over an
+  existing store, and shell-injection-safe; read-mode opens are unaffected
+  (the store must already exist). A new `init-mkdir` ctest scenario writes
+  into a fresh nested subdirectory and asserts the store is created
+  ([#42](https://github.com/grAItools/preserf/issues/42)).
 - `ppser_initialize`'s `mode` argument is now **optional**, restoring
   drop-in compatibility with pp_ser / Serialbox `!$SER INIT` call sites,
   which never pass `mode` (Serialbox selects it separately via `!$SER MODE`

@@ -276,17 +276,16 @@ contains
    !>     aborts at this boundary. The same group-per-savepoint schema
    !>     serves both backends (see docs/adr/0002-storage-model-mapping.md).
    !>
-   !> **Precondition:** `directory` MUST already exist on disk. The
-   !> helper calls `nf90_create` on the per-backend target directly and
-   !> does not create parent directories — `nf90_create` propagates the
-   !> underlying HDF5 / system error if the parent is missing. The Python
-   !> reference writer in `tests/_support/storage.py` creates the
-   !> directory with `mkdir(parents=True, exist_ok=True)`; Fortran callers
-   !> are responsible for an equivalent step before calling
-   !> `ppser_initialize`. The CTest target `preserf_fortran_minimal_setup`
-   !> runs `cmake -E make_directory` for this reason;
-   !> tests/integration_tests/test_fortran_wire_compat.py uses pytest's
-   !> `tmp_path` fixture.
+   !> **Output directory:** in write mode `directory` is created with
+   !> `mkdir -p` semantics before `nf90_create` (issue #42), matching
+   !> Serialbox — whose serializer creation made the output directory, so
+   !> drop-in `!$SER INIT directory='...'` call sites (e.g. ICON) never
+   !> mkdir it themselves. Without this a fresh run would abort inside
+   !> `nf90_create` with netCDF's generic "Permission denied" (the real
+   !> cause being the missing parent directory). The Python reference
+   !> writer in `tests/_support/storage.py` likewise creates the directory
+   !> with `mkdir(parents=True, exist_ok=True)`. Read mode does not create
+   !> the directory: the store must already exist to be opened.
    !>
    !> `mode` is one of: 'w' (write, create or truncate), 'r' (read-only).
    !> Append mode ('a') is reserved but currently rejected — see
@@ -704,6 +703,17 @@ contains
 
       select case (mode)
       case ('w', 'W')
+         ! Create `directory` (mkdir -p semantics) before nf90_create,
+         ! matching Serialbox: its serializer creation made the output
+         ! directory, so real `!$SER INIT directory='...'` call sites (and
+         ! the runscripts that drive them) never mkdir it. Without this a
+         ! fresh run aborts inside nf90_create with netCDF's generic
+         ! "Permission denied" (the real cause is the missing parent dir).
+         ! Only the 'w' path needs it — a read open requires the store to
+         ! already exist. For nczarr-v2 the `.zarr` store is itself a
+         ! directory under `directory`, so creating `directory` (its parent)
+         ! is the right target there too.
+         call preserf_ensure_directory(directory)
          ncerr = nf90_create(path, NF90_NETCDF4, s%ncid)
          call preserf_check_nf_with_msg(ncerr, 'nf90_create '//path)
          s%writable = .true.
@@ -738,6 +748,71 @@ contains
       ! Silence "unused" warning for `version` on write-path opens.
       if (.false.) version = version
    end subroutine preserf_open_serializer
+
+   !> Create `directory` with `mkdir -p` semantics before a write-mode
+   !> open, so a fresh run does not abort inside `nf90_create` on a missing
+   !> parent directory (issue #42). Serialbox's serializer creation made
+   !> the directory, so drop-in `!$SER INIT directory='...'` call sites
+   !> never do; preserf must match that behaviour.
+   !>
+   !> Fortran has no intrinsic mkdir, so the portable approach is
+   !> `EXECUTE_COMMAND_LINE` with the platform `mkdir`. `mkdir -p` is a
+   !> no-op when the directory already exists, so re-initialising over an
+   !> existing store is fine. An empty `directory` means "current working
+   !> directory" (the `<dir>/<prefix>.nc` path would then be `/prefix.nc`
+   !> at root — but that is the caller's existing convention); skip the
+   !> mkdir in that case rather than run `mkdir -p ''`.
+   !>
+   !> A failed `mkdir` (`exitstat /= 0`) or a shell that could not be
+   !> launched (`cmdstat /= 0`) aborts with a clear message that names the
+   !> directory, rather than letting the subsequent `nf90_create` fail with
+   !> netCDF's generic "Permission denied".
+   subroutine preserf_ensure_directory(directory)
+      character(len=*), intent(in) :: directory
+      integer :: exitstat, cmdstat
+      character(len=256) :: cmdmsg
+
+      if (len_trim(directory) == 0) return
+
+      ! Single-quote the path so spaces and shell metacharacters are taken
+      ! literally; embedded single quotes are escaped via the standard
+      ! '\'' close-reopen idiom so a quote in the path cannot break out of
+      ! the quoting.
+      call execute_command_line( &
+         "mkdir -p '"//replace_single_quotes(trim(directory))//"'", &
+         wait=.true., exitstat=exitstat, cmdstat=cmdstat, cmdmsg=cmdmsg)
+
+      if (cmdstat /= 0) then
+         write (*, '(a,a,a,a)') &
+            'preserf: could not run mkdir for output directory ', &
+            trim(directory), ': ', trim(cmdmsg)
+         error stop 1
+      end if
+      if (exitstat /= 0) then
+         write (*, '(a,a,a,i0,a)') &
+            'preserf: failed to create output directory ', &
+            trim(directory), ' (mkdir exit status ', exitstat, ')'
+         error stop 1
+      end if
+   end subroutine preserf_ensure_directory
+
+   !> Return `s` with every single quote replaced by the shell-safe
+   !> close-reopen escape `'\''`, so the result can be embedded inside a
+   !> single-quoted shell word. Used by preserf_ensure_directory to pass an
+   !> arbitrary directory path to `mkdir -p` without shell injection.
+   pure function replace_single_quotes(s) result(out)
+      character(len=*), intent(in) :: s
+      character(len=:), allocatable :: out
+      integer :: i
+      out = ''
+      do i = 1, len(s)
+         if (s(i:i) == "'") then
+            out = out//"'\''"
+         else
+            out = out//s(i:i)
+         end if
+      end do
+   end function replace_single_quotes
 
    subroutine preserf_close_serializer(s)
       type(t_serializer), intent(inout) :: s

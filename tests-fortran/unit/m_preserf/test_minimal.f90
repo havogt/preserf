@@ -404,6 +404,62 @@ program test_minimal
                write (*, '(a)') 'preserf-fortran: init-default-mode OK'
                stop
             end block
+         else if (scenario == 'init-mkdir') then
+            ! Issue #42: in write mode ppser_initialize must create
+            ! `directory` (mkdir -p semantics) before nf90_create, matching
+            ! Serialbox — whose serializer creation made the output
+            ! directory, so drop-in `!$SER INIT directory='...'` call sites
+            ! never mkdir it. Point INIT at a fresh nested subdirectory that
+            ! does NOT exist, write a field, finalize, and assert the store
+            ! file was created (i.e. the directory was created first). A
+            ! second init into the same (now-existing) directory proves
+            ! mkdir -p is idempotent. The Python wire-compat counterpart is
+            ! not needed: this is a pure local-filesystem behaviour.
+            block
+               character(len=:), allocatable :: nested_dir
+               character(len=:), allocatable :: store_path
+               real(real64) :: u_w(3)
+               logical :: dir_pre, store_post
+               integer :: i
+               do i = 1, 3
+                  u_w(i) = 700.0_real64 + real(i, real64)
+               end do
+               ! A two-level nested path under the ctest output dir, so the
+               ! mkdir must create more than one missing component. Clear it
+               ! first (the ctest output dir is reused, not cleaned) so the
+               ! "did not exist before" precondition actually holds.
+               nested_dir = trim(out_dir)//'/mkdir_a/mkdir_b'
+               store_path = nested_dir//'/fmkdir.nc'
+               call delete_if_exists(store_path)
+               inquire (file=store_path, exist=dir_pre)
+               if (dir_pre) error stop &
+                  'init-mkdir: store file unexpectedly present before init'
+
+               call ppser_initialize(nested_dir, 'fmkdir', 'w')
+               call fs_register_field(ppser_serializer, 'u', 'double', &
+                                      ppser_reallength, 3, 0, 0, 0, &
+                                      0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_create_savepoint('step', ppser_savepoint)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'u', u_w)
+               call ppser_finalize()
+
+               inquire (file=store_path, exist=store_post)
+               if (.not. store_post) error stop &
+                  'init-mkdir: store file not created (directory not made)'
+
+               ! mkdir -p is idempotent: a second write into the now-existing
+               ! directory must succeed, not abort.
+               call ppser_initialize(nested_dir, 'fmkdir2', 'w')
+               call fs_register_field(ppser_serializer, 'u', 'double', &
+                                      ppser_reallength, 3, 0, 0, 0, &
+                                      0, 0, 0, 0, 0, 0, 0, 0)
+               call fs_create_savepoint('step', ppser_savepoint)
+               call fs_write_field(ppser_serializer, ppser_savepoint, 'u', u_w)
+               call ppser_finalize()
+
+               write (*, '(a)') 'preserf-fortran: init-mkdir OK'
+               stop
+            end block
          else if (scenario == 'perturb-roundtrip') then
             ! Slice A-2: the 5-arg fs_read_field applies symmetric
             ! multiplicative noise data*(1 + scale*(2*r-1)) for every
