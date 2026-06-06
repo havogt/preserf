@@ -1782,8 +1782,24 @@ contains
    !> exit status is asserted only to surface a real removal failure.
    subroutine remove_dir_recursive(path)
       character(len=*), intent(in) :: path
-      integer :: exitstat, cmdstat
-      call execute_command_line("rm -rf '"//trim(path)//"'", &
+      integer :: exitstat, cmdstat, i
+      character(len=:), allocatable :: escaped
+      ! Single-quote the path so spaces and shell metacharacters are taken
+      ! literally; embedded single quotes are escaped via the standard
+      ! '\'' close-reopen idiom (mirroring preserf_ensure_directory, whose
+      ! replace_single_quotes helper is private to utils_preserf) so a quote
+      ! in the path cannot break out of the quoting. `--` terminates option
+      ! parsing so a path beginning with `-` is treated as an operand rather
+      ! than an `rm` flag.
+      escaped = ''
+      do i = 1, len_trim(path)
+         if (path(i:i) == "'") then
+            escaped = escaped//"'\''"
+         else
+            escaped = escaped//path(i:i)
+         end if
+      end do
+      call execute_command_line("rm -rf -- '"//escaped//"'", &
                                 wait=.true., exitstat=exitstat, cmdstat=cmdstat)
       if (cmdstat /= 0 .or. exitstat /= 0) error stop &
          'remove_dir_recursive: failed to clear precondition directory'
