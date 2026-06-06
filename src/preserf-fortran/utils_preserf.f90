@@ -758,10 +758,12 @@ contains
    !> Fortran has no intrinsic mkdir, so the portable approach is
    !> `EXECUTE_COMMAND_LINE` with the platform `mkdir`. `mkdir -p` is a
    !> no-op when the directory already exists, so re-initialising over an
-   !> existing store is fine. An empty `directory` means "current working
-   !> directory" (the `<dir>/<prefix>.nc` path would then be `/prefix.nc`
-   !> at root — but that is the caller's existing convention); skip the
-   !> mkdir in that case rather than run `mkdir -p ''`.
+   !> existing store is fine. An empty `directory` is skipped here rather
+   !> than running `mkdir -p ''`: with the netcdf4 backend the store path
+   !> is built as `trim(directory)//'/'//<prefix>.nc`, so an empty
+   !> `directory` yields the root-anchored `/<prefix>.nc` (it does NOT mean
+   !> "current working directory"); there is no parent directory for
+   !> preserf to create in that case, so the skip is correct.
    !>
    !> A failed `mkdir` (`exitstat /= 0`) or a shell that could not be
    !> launched (`cmdstat /= 0`) aborts with a clear message that names the

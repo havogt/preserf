@@ -425,12 +425,19 @@ program test_minimal
                   u_w(i) = 700.0_real64 + real(i, real64)
                end do
                ! A two-level nested path under the ctest output dir, so the
-               ! mkdir must create more than one missing component. Clear it
-               ! first (the ctest output dir is reused, not cleaned) so the
-               ! "did not exist before" precondition actually holds.
+               ! mkdir must create more than one missing component. The ctest
+               ! output dir is reused (not cleaned), so a prior run may have
+               ! left `nested_dir` (and its parent `mkdir_a`) behind. Remove
+               ! the whole `mkdir_a` subtree recursively and assert the leaf
+               ! directory is genuinely absent, so the test actually
+               ! exercises ppser_initialize creating a *missing* directory
+               ! rather than passing trivially against a pre-existing one.
                nested_dir = trim(out_dir)//'/mkdir_a/mkdir_b'
                store_path = nested_dir//'/fmkdir.nc'
-               call delete_if_exists(store_path)
+               call remove_dir_recursive(trim(out_dir)//'/mkdir_a')
+               if (dir_exists(nested_dir)) error stop &
+                  'init-mkdir: nested output directory unexpectedly present '// &
+                  'before init (precondition cleanup failed)'
                inquire (file=store_path, exist=dir_pre)
                if (dir_pre) error stop &
                   'init-mkdir: store file unexpectedly present before init'
@@ -1766,6 +1773,30 @@ contains
       open (newunit=unit, file=path, status='old', iostat=ios)
       if (ios == 0) close (unit, status='delete')
    end subroutine delete_if_exists
+
+   !> Recursively remove a directory subtree (`rm -rf`) if it exists. The
+   !> init-mkdir scenario uses this to clear a nested output directory that
+   !> a prior run may have left behind, so the "directory was missing
+   !> before init" precondition genuinely holds (the ctest output dir is
+   !> reused, not cleaned). `rm -rf` is a no-op on a missing path, so the
+   !> exit status is asserted only to surface a real removal failure.
+   subroutine remove_dir_recursive(path)
+      character(len=*), intent(in) :: path
+      integer :: exitstat, cmdstat
+      call execute_command_line("rm -rf '"//trim(path)//"'", &
+                                wait=.true., exitstat=exitstat, cmdstat=cmdstat)
+      if (cmdstat /= 0 .or. exitstat /= 0) error stop &
+         'remove_dir_recursive: failed to clear precondition directory'
+   end subroutine remove_dir_recursive
+
+   !> Return .true. iff `path` is an existing directory. gfortran's
+   !> `inquire(file=...//'/.', exist=)` form detects a directory (the
+   !> trailing `/.` only resolves when the path is a directory), which a
+   !> bare `inquire(file=path)` does not portably do.
+   logical function dir_exists(path)
+      character(len=*), intent(in) :: path
+      inquire (file=trim(path)//'/.', exist=dir_exists)
+   end function dir_exists
 
    !> Register a field of the given datatype and (i,j,k,l) sizes with all
    !> halos zero, against the module-level ppser_serializer. Keeps the
