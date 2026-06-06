@@ -1519,6 +1519,91 @@ program test_minimal
                                    k=2, k_size=3, mode=ppser_get_mode())
                call abort_unexpected('kbuff-bad-shape')
             end block
+         else if (scenario == 'autoregister') then
+            ! Issue #43: Serialbox's fs_write_field auto-registers a field
+            ! on its first write, so pp_ser !$SER DATA / !$SER ACCDATA call
+            ! sites (which never emit !$SER REGISTER) write without an
+            ! explicit registration. Write one field of representative
+            ! dtypes and ranks with NO prior fs_register_field call, then
+            ! re-open read-only and round-trip them back: the read path can
+            ! only resolve the field through the registry, so a lossless
+            ! round-trip proves the write path auto-registered the inferred
+            ! type_id + dims. No fs_register_field appears anywhere here.
+            block
+               real(real64) :: r8f(3), r8fb(3)
+               integer(int32) :: i4f(2, 3), i4fb(2, 3), sc, scb
+               logical :: lf(4), lfb(4)
+               real(real32) :: a4(2, 2, 2, 2), a4b(2, 2, 2, 2)
+               integer :: i, j, k, l
+               do i = 1, 3
+                  r8f(i) = real(i, real64) + 0.25_real64
+               end do
+               do j = 1, 3
+                  do i = 1, 2
+                     i4f(i, j) = int(10*i + j, int32)
+                  end do
+               end do
+               lf = [.true., .false., .false., .true.]
+               sc = 4242_int32
+               do l = 1, 2
+                  do k = 1, 2
+                     do j = 1, 2
+                        do i = 1, 2
+                           a4(i, j, k, l) = &
+                              real(1000*i + 100*j + 10*k + l, real32)
+                        end do
+                     end do
+                  end do
+               end do
+
+               call ppser_initialize(out_dir, 'fauto', 'w')
+               call fs_create_savepoint('step', ppser_savepoint)
+               ! First write of each field, with no prior registration:
+               ! covers real64 1-D, int32 2-D, logical 1-D, int32 0-D
+               ! (scalar) and real32 4-D.
+               call fs_write_field(ppser_serializer, ppser_savepoint, &
+                                   'r8f', r8f)
+               call fs_write_field(ppser_serializer, ppser_savepoint, &
+                                   'i4f', i4f)
+               call fs_write_field(ppser_serializer, ppser_savepoint, &
+                                   'lf', lf)
+               call fs_write_field(ppser_serializer, ppser_savepoint, &
+                                   'sc', sc)
+               call fs_write_field(ppser_serializer, ppser_savepoint, &
+                                   'a4', a4)
+               ! A second write of an already auto-registered field must
+               ! still validate against the inferred metadata (it must not
+               ! re-register), so reuse the same shapes here.
+               call fs_write_field(ppser_serializer, ppser_savepoint, &
+                                   'r8f', r8f)
+               call ppser_finalize()
+
+               call ppser_initialize(out_dir, 'fauto', 'r')
+               call fs_create_savepoint('step', ppser_savepoint)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'r8f', r8fb)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'i4f', i4fb)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'lf', lfb)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'sc', scb)
+               call fs_read_field(ppser_serializer, ppser_savepoint, &
+                                  'a4', a4b)
+               if (any(r8fb /= r8f)) error stop &
+                  'autoregister: real64 1-D mismatch'
+               if (any(i4fb /= i4f)) error stop &
+                  'autoregister: int32 2-D mismatch'
+               if (any(lfb .neqv. lf)) error stop &
+                  'autoregister: logical 1-D mismatch'
+               if (scb /= sc) error stop &
+                  'autoregister: int32 0-D scalar mismatch'
+               if (any(a4b /= a4)) error stop &
+                  'autoregister: real32 4-D mismatch'
+               call ppser_finalize()
+               write (*, '(a)') 'preserf-fortran: autoregister OK'
+               stop
+            end block
          else
             write (*, '(a,a)') &
                'preserf-test_minimal: unknown scenario argument: ', &

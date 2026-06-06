@@ -317,6 +317,69 @@ def test_fortran_writes_nczarr_v2_python_reads(
     )
 
 
+def test_fortran_autoregistered_fields_python_reads(
+    tmp_path: Path, fortran_binary: Path
+) -> None:
+    """Issue #43: a write with no prior REGISTER auto-registers the field.
+
+    Serialbox's ``fs_write_field`` registers a field (type + dims, inferred
+    from the array) on its first write, so pp_ser ``!$SER DATA`` /
+    ``!$SER ACCDATA`` call sites that never emit ``!$SER REGISTER`` write
+    without an explicit registration. The ``autoregister`` scenario in
+    ``test_minimal.f90`` writes representative dtypes / ranks with no
+    ``fs_register_field`` call. This decodes the resulting store through the
+    Python reference reader and asserts the auto-registered ``type_id`` /
+    ``dims`` and the field values — proving the inferred registry entry is
+    well-formed for the cross-language reader, not just for Fortran reads.
+    """
+    out_dir = tmp_path / "fortran_out"
+    out_dir.mkdir()
+
+    result = subprocess.run(
+        [str(fortran_binary), str(out_dir), "autoregister"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert result.returncode == 0, (
+        f"Fortran binary exited {result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+    assert "preserf-fortran: autoregister OK" in result.stdout
+
+    dump = read_dump(out_dir / "fauto.nc")
+
+    # Every field was auto-registered on first write — no REGISTER call
+    # appears in the scenario, yet the registry must carry the inferred
+    # type_id and C-order dims for each.
+    assert dump.field_map["r8f"].type_id == TypeID.Float64
+    assert dump.field_map["r8f"].dims == [3]
+    assert dump.field_map["i4f"].type_id == TypeID.Int32
+    # 2-D Fortran (2,3) -> C-order dims [3, 2].
+    assert dump.field_map["i4f"].dims == [3, 2]
+    assert dump.field_map["lf"].type_id == TypeID.Boolean
+    assert dump.field_map["lf"].dims == [4]
+    assert dump.field_map["sc"].type_id == TypeID.Int32
+    assert dump.field_map["sc"].dims == []
+    assert dump.field_map["a4"].type_id == TypeID.Float32
+    assert dump.field_map["a4"].dims == [2, 2, 2, 2]
+
+    # Values round-trip through the Python reader at the single savepoint.
+    # field_data is keyed by per-field id; resolve each via the savepoint's
+    # field map rather than assuming a particular id assignment order.
+    sp = dump.savepoints[0]
+    np.testing.assert_array_equal(
+        dump.field_data["r8f"][sp.fields["r8f"]],
+        np.array([1.25, 2.25, 3.25], dtype=np.float64),
+    )
+    np.testing.assert_array_equal(
+        dump.field_data["lf"][sp.fields["lf"]],
+        np.array([True, False, False, True]),
+    )
+    assert int(dump.field_data["sc"][sp.fields["sc"]]) == 4242
+
+
 def test_fortran_writes_tracers_python_reads(
     tmp_path: Path, fortran_binary: Path
 ) -> None:

@@ -198,6 +198,19 @@ embedded in each spec's Problem section.
   (the store must already exist). A new `init-mkdir` ctest scenario writes
   into a fresh nested subdirectory and asserts the store is created
   ([#42](https://github.com/grAItools/preserf/issues/42)).
+- `fs_write_field` now **auto-registers** a field on its first write when it
+  is not already present under `/_fields/`, inferring the `type_id` from the
+  Fortran overload and the C-order `dims` from the runtime array shape (no
+  halos). This matches Serialbox, whose `fs_write_field` registers a field on
+  first write, so pp_ser `!$SER DATA` / `!$SER ACCDATA` call sites — which
+  never emit `!$SER REGISTER` — write without an explicit registration
+  instead of aborting with "write on unregistered field". A read of an
+  unregistered field still aborts (there is nothing to read). A new
+  `autoregister` ctest scenario writes representative dtypes / ranks with no
+  prior `fs_register_field` and round-trips them back, and a
+  `test_fortran_wire_compat.py` scenario asserts the inferred registry
+  entries decode through the Python reference reader
+  ([#43](https://github.com/grAItools/preserf/issues/43)).
 - `ppser_initialize`'s `mode` argument is now **optional**, restoring
   drop-in compatibility with pp_ser / Serialbox `!$SER INIT` call sites,
   which never pass `mode` (Serialbox selects it separately via `!$SER MODE`

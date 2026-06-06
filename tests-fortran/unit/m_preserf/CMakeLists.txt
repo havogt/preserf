@@ -505,3 +505,21 @@ set_tests_properties(preserf_fortran_kbuff_bad_shape PROPERTIES
     PASS_REGULAR_EXPRESSION "inconsistent slice shape"
     TIMEOUT 60
 )
+
+# Issue #43: fs_write_field auto-registers a field on its first write,
+# matching Serialbox, so pp_ser !$SER DATA / !$SER ACCDATA call sites
+# (which never emit !$SER REGISTER) write without an explicit
+# registration. The scenario writes representative dtypes / ranks with no
+# prior fs_register_field, then re-opens read-only and round-trips them
+# back — the read path resolves each field only through the registry, so a
+# lossless round-trip proves the inferred type_id + dims were recorded.
+add_test(
+    NAME preserf_fortran_autoregister
+    COMMAND $<TARGET_FILE:preserf_fortran_test_minimal>
+            "${CMAKE_CURRENT_BINARY_DIR}/test-output" autoregister
+)
+set_tests_properties(preserf_fortran_autoregister PROPERTIES
+    FIXTURES_REQUIRED preserf_fortran_output_dir
+    PASS_REGULAR_EXPRESSION "preserf-fortran: autoregister OK"
+    TIMEOUT 60
+)
